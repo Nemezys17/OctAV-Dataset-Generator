@@ -5,7 +5,7 @@ import sqlite3
 import sys
 import time
 from argparse import ArgumentParser
-from dataset.builder import generate_legit_binaries_dataset, generate_malwares_dataset, SQLITE_SCHEME, import_lisa_reports
+from dataset.builder import generate_legit_binaries_dataset, generate_malwares_dataset, SQLITE_SCHEME, import_lisa_reports, export_dataset_to_csv
 
 
 if __name__ == "__main__":
@@ -24,13 +24,15 @@ if __name__ == "__main__":
                         help="prints some stats about the given dataset")
     parser.add_argument("--lisa-reports-dir", metavar="REPORTS_DIR",
                         help="parses json reports in the directory and insert results in the database")
+    parser.add_argument('--export-csv', action="store_true", 
+                        help='export dataset to csv file')
 
     args = parser.parse_args(None if sys.argv[1:] else ['--help'])
 
     if args.stats is None and args.legit_dirs is None and args.malware_dirs is None and args.lisa_reports_dir is None:
         parser.error("nothing to do")
 
-    if os.path.isfile(args.db):
+    if os.path.isfile(args.db) and not args.export_csv:
         if args.overwrite:
             os.remove(args.db)
             print("Previous database overwritten")
@@ -48,6 +50,7 @@ if __name__ == "__main__":
     legits = args.legit_dirs
     malwares = args.malware_dirs
     lisa_reports_dir = args.lisa_reports_dir
+    export_csv = args.export_csv
 
     db = sqlite3.connect(args.db)
 
@@ -92,4 +95,7 @@ if __name__ == "__main__":
         print("Syscalls count:", syscalls_count)
         print("-" * 50)
 
+    if export_csv:
+        export_dataset_to_csv(args.db)
+        
     db.close()

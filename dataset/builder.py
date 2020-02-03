@@ -5,6 +5,7 @@ import os
 import sqlite3
 import threading
 import time
+import subprocess
 
 from multiprocessing.pool import ThreadPool
 from typing import List
@@ -217,3 +218,66 @@ def import_lisa_reports(reports_dir, db: sqlite3.Connection):
                 time.sleep(3)
 
         _export_buffered_binaries(db)  # Export remaining buffered flows
+
+
+def export_dataset_to_csv(db_filename):
+    print("Exporting malwares dataset to CSV...")
+    
+    try:
+        subprocess.run(f"sqlite3 -header -csv {db_filename} \"SELECT * FROM executions\" > dataset_executions.csv", shell=True, check=True)
+        subprocess.run(f"sqlite3 -header -csv {db_filename} \"SELECT * FROM flows\" > dataset_flows.csv", shell=True, check=True)
+        subprocess.run(f"sqlite3 -header -csv {db_filename} \"SELECT * FROM syscalls\" > dataset_syscalls.csv", shell=True, check=True)
+
+        #Load legits reports and compute max_sequence_length and max_sequences_number
+        with open("dataset_executions.csv", "r") as executions_file:
+            executions = executions_file.read().splitlines()
+
+        with open("dataset_flows.csv", "r") as flows_file:
+            flows = flows_file.read().splitlines()
+
+        syscall_file = open("dataset_syscalls.csv", "r")
+        flow_id = 1
+        syscall_file.readline()
+
+        for execution in executions[1:]:
+            execution_trace = []
+            for flow in flows[flow_id:]:
+                flow_sequences = []
+                if flow.split(',')[1] == execution.split(',')[0]:
+                    line = syscall_file.readline().splitlines()
+                    while line != [] and line[0].split(',')[1] == flow.split(',')[0]:
+                        fields = line[0].split(',')
+                        try:
+                            flow_sequences.append(SYSCALLS[fields[2]])
+                        except:
+                            pass
+                        line = syscall_file.readline().splitlines()
+                    execution_trace.append(flow_sequences)
+                else:
+                    flow_id = int(flow.split(',')[0]) 
+                    break
+
+            with open("dataset.csv", "a") as dataset_file:
+                dataset_file.write("0")
+                for sequence in execution_trace:
+                    data = ','.join([str(syscall) for syscall in sequence])
+                    dataset_file.write(",\"{}\"".format(data))
+                dataset_file.write("\n")
+
+        #Load malwares reports and compute max_sequence_length and max_sequences_number
+        for filename in os.listdir(MALWARES_REPORTS_DIR):
+            syscalls_sequences = _load_json_report("{}/{}".format(MALWARES_REPORTS_DIR, filename))
+
+            with open("dataset.csv", "a") as dataset_file:
+                dataset_file.write("1")
+                for sequence in list(syscalls_sequences.values()):
+                    data = ','.join([str(syscall) for syscall in sequence])
+                    dataset_file.write(",\"{}\"".format(data))
+                dataset_file.write("\n")
+                
+        os.remove("dataset_executions.csv")
+        os.remove("dataset_flows.csv")
+        os.remove("dataset_syscalls.csv")
+    except Exception as e:
+        print("Dataset export failed")
+        print(e)
