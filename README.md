@@ -86,3 +86,9 @@ For machine learning purposes, you might want to use csv instead, just perform t
 ```
 $ sqlite3 -header -csv dataset.db "SELECT * FROM syscalls" > dataset.csv
 ```
+
+# Export dataset to csv directly
+
+To export the db file to csv format directly usable by the manager, use the following command :
+
+`python -m dataset --export-csv --db database_filename`
